@@ -1,0 +1,51 @@
+{
+  "domain": "biology",
+  "methods": [
+    {
+      "name": "CRISPR Gene Editing",
+      "aliases": ["CRISPR-Cas9", "CRISPR editing"],
+      "description": "Targeted genome editing using CRISPR-associated nucleases"
+    },
+    {
+      "name": "RNA Sequencing",
+      "aliases": ["RNA-Seq", "RNAseq"],
+      "description": "High-throughput sequencing of transcriptomes"
+    }
+  ],
+  "datasets": [
+    {
+      "name": "Gene Expression Omnibus",
+      "aliases": ["GEO"],
+      "description": "NCBI repository of functional genomics datasets"
+    },
+    {
+      "name": "Protein Data Bank",
+      "aliases": ["PDB"],
+      "description": "Database of biomolecular 3D structures"
+    }
+  ],
+  "metrics": [
+    {
+      "name": "Fold Change",
+      "aliases": ["log2 fold change", "FC"],
+      "description": "Ratio comparing treatment and control expression"
+    },
+    {
+      "name": "Sequence Coverage",
+      "aliases": ["Coverage"],
+      "description": "Proportion of a sequence observed in sequencing experiments"
+    }
+  ],
+  "tasks": [
+    {
+      "name": "Gene Regulation Analysis",
+      "aliases": ["Regulatory network inference"],
+      "description": "Studying transcriptional regulation mechanisms"
+    },
+    {
+      "name": "Protein Structure Prediction",
+      "aliases": ["Structure modelling"],
+      "description": "Inferring 3D conformation of proteins from sequence"
+    }
+  ]
+}

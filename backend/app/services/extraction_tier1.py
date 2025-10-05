@@ -35,6 +35,7 @@ from app.services.ontology_store import (
 from app.services.papers import get_paper
 from app.services.sections import list_sections
 from app.services.storage import download_pdf_from_storage
+from app.services.domain_inference import infer_domain_key
 from app.utils.text_sanitize import sanitize_text
 
 try:  # pragma: no cover - optional dependency
@@ -45,20 +46,40 @@ except ImportError:  # pragma: no cover - optional dependency
 
 SNIPPET_WINDOW = 80
 DEFAULT_CONFIDENCE = 0.6
-
-RESULT_PATTERN = re.compile(
-    r"(?P<metric>BLEU|ROUGE(?:-L)?|METEOR|ChrF\+\+?|F1|Accuracy|Top-1)\s*(=|:)?\s*(?P<val>\d+(?:\.\d+)?)\s*(?P<suffix>%|pts|\s*points)?",
-    re.IGNORECASE,
+DEFAULT_RESULT_METRIC_TERMS = (
+    "accuracy",
+    "precision",
+    "recall",
+    "f1",
+    "f1 score",
+    "f1-score",
+    "auc",
+    "roc auc",
+    "map",
+    "ndcg",
+    "bleu",
+    "rouge",
+    "meteor",
+    "chrF",
+    "chrF++",
+    "top-1",
+    "top-5",
+    "mae",
+    "rmse",
+    "psnr",
+    "dice",
+    "iou",
 )
+
 EVALUATE_PATTERN = re.compile(
-    r"(?:evaluate(?:d)?|tested|trained|measured)"
-    r"(?:\s+[A-Za-z0-9\-]+){0,6}\s+on\s+"
+    r"(?:evaluate(?:d)?|evaluating|tested|test(?:ing)?|trained|training|measured|measuring|validated|validating|benchmarked)"
+    r"(?:\s+[A-Za-z0-9\-]+){0,6}\s+(?:on|against|using)\s+"
     r"(?P<dataset>[A-Za-z0-9\-\+\/ ]{2,}?)(?=(?:[,.;]"
-    r"|\s+(?:and|with|for|using|achiev(?:es|ing)?|reports?|showing|compared|where)\b|$))",
+    r"|\s+(?:and|with|for|using|achiev(?:es|ing)?|reports?|showing|compared|where|versus)\b|$))",
     re.IGNORECASE,
 )
 PROPOSE_PATTERN = re.compile(
-    r"we\s+(?:propose|introduce|present)\s+(?P<method>[A-Z0-9][A-Z0-9\-\+ ]{2,})",
+    r"we\s+(?:propose|introduce|present|develop|design|build)\s+(?P<method>[A-Z0-9][A-Z0-9\-\+ ]{2,})",
     re.IGNORECASE,
 )
 STATE_OF_THE_ART_PATTERN = re.compile(
@@ -351,6 +372,7 @@ class Tier1Lexicon:
         self._dataset_lookup = _build_lookup(self.datasets)
         self._metric_lookup = _build_lookup(self.metrics)
         self._task_lookup = _build_lookup(self.tasks)
+        self._result_pattern = _build_result_pattern(self.metrics)
 
     @classmethod
     def from_json(cls, payload: dict[str, Any]) -> Tier1Lexicon:
@@ -390,20 +412,111 @@ class Tier1Lexicon:
     def find_task_in_text(self, text: str) ->Optional[LexiconEntry]:
         return _find_best_match(self._task_lookup, text)
 
+    @property
+    def result_pattern(self) -> re.Pattern[str]:
+        return self._result_pattern
 
-_MT_LEXICON: Optional[Tier1Lexicon] = None
+
+_LEXICON_CACHE: dict[str, Tier1Lexicon] = {}
+_DOMAIN_ALIASES = {
+    "mt": "machine_translation",
+    "machine-translation": "machine_translation",
+    "machine_translation": "machine_translation",
+    "translation": "machine_translation",
+    "general": "general_science",
+    "general-science": "general_science",
+}
+_DOMAIN_FILE_OPTIONS = {
+    "machine_translation": ["machine_translation_lexicon.json", "mt_lexicon.json"],
+    "general_science": ["default_lexicon.json"],
+    "biology": ["biology_lexicon.json"],
+    "materials": ["materials_lexicon.json"],
+}
+_DEFAULT_LEXICON_FILES = ["default_lexicon.json", "mt_lexicon.json"]
+
+
+def _normalize_domain_key(domain: Optional[str]) -> str:
+    if not domain:
+        return "default"
+    normalized = re.sub(r"[^a-z0-9]+", "_", domain.strip().lower())
+    normalized = normalized.strip("_")
+    if not normalized:
+        return "default"
+    return _DOMAIN_ALIASES.get(normalized, normalized)
+
+
+def load_lexicon(domain: Optional[str] = None) -> Tier1Lexicon:
+    normalized = _normalize_domain_key(domain)
+    cached = _LEXICON_CACHE.get(normalized)
+    if cached is not None:
+        return cached
+
+    base_path = Path(__file__).resolve().parents[1] / "data"
+    search_files: list[str] = []
+    if normalized != "default":
+        search_files.extend(_DOMAIN_FILE_OPTIONS.get(normalized, []))
+    search_files.extend(_DEFAULT_LEXICON_FILES)
+
+    for filename in search_files:
+        path = base_path / filename
+        if not path.exists():
+            continue
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        lexicon = Tier1Lexicon.from_json(payload)
+        _LEXICON_CACHE[normalized] = lexicon
+        # Cache the default lexicon separately to avoid re-loading on future fallbacks.
+        if normalized != "default" and "domain" in payload:
+            fallback_key = _normalize_domain_key(payload.get("domain"))
+            _LEXICON_CACHE.setdefault(fallback_key, lexicon)
+        if normalized != "default" and filename in _DEFAULT_LEXICON_FILES:
+            _LEXICON_CACHE.setdefault("default", lexicon)
+        return lexicon
+
+    # If no file exists for the requested domain, fall back to the default cache if available.
+    default_lexicon = _LEXICON_CACHE.get("default")
+    if default_lexicon is not None:
+        _LEXICON_CACHE[normalized] = default_lexicon
+        return default_lexicon
+
+    fallback_name = _DEFAULT_LEXICON_FILES[0]
+    default_path = base_path / fallback_name
+    if not default_path.exists():
+        raise FileNotFoundError("Tier-1 lexicon files are missing from the data directory")
+    with default_path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    lexicon = Tier1Lexicon.from_json(payload)
+    _LEXICON_CACHE["default"] = lexicon
+    _LEXICON_CACHE[normalized] = lexicon
+    return lexicon
 
 
 def load_mt_lexicon() -> Tier1Lexicon:
-    global _MT_LEXICON
-    if _MT_LEXICON is None:
-        path = Path(__file__).resolve().parents[1] / "data" / "mt_lexicon.json"
-        with path.open("r", encoding="utf-8") as handle:
-            payload = json.load(handle)
-        _MT_LEXICON = Tier1Lexicon.from_json(payload)
-    return _MT_LEXICON
+    return load_lexicon("machine_translation")
 
 
+def _build_result_pattern(metrics: Sequence[LexiconEntry]) -> re.Pattern[str]:
+    metric_terms: set[str] = set(DEFAULT_RESULT_METRIC_TERMS)
+    for entry in metrics:
+        for phrase in entry.phrases:
+            cleaned = phrase.strip()
+            if cleaned:
+                metric_terms.add(cleaned)
+
+    sorted_terms = sorted(metric_terms, key=lambda value: (-len(value), value.lower()))
+    escaped_terms = [re.escape(term) for term in sorted_terms if term]
+    if not escaped_terms:
+        escaped_terms = [r"[A-Za-z][A-Za-z0-9_\-]{2,}"]
+    metric_group = "|".join(escaped_terms)
+
+    value_pattern = r"[-+]?\d+(?:\.\d+)?(?:e[-+]?\d+)?"
+    suffix_pattern = r"%|percent|pts?|pp|percentage points|score|db"
+    pattern = re.compile(
+        rf"(?P<metric>{metric_group})\s*(?:=|:|≈|~|was|is|of|score(?:s)?|achieve(?:s|d)?|reaches|yields|at)?\s*"
+        rf"(?P<val>{value_pattern})\s*(?P<suffix>{suffix_pattern})?",
+        re.IGNORECASE,
+    )
+    return pattern
 
 
 def _clean_section_text(section: Section) -> str:
@@ -463,7 +576,7 @@ def extract_signals(
     lexicon: Optional[Tier1Lexicon] = None,
     table_texts: Optional[Sequence[str | TableRecord]] = None,
 ) -> Tier1Artifacts:
-    lexicon = lexicon or load_mt_lexicon()
+    lexicon = lexicon or load_lexicon()
     artifacts = Tier1Artifacts()
 
     text_sources: list[tuple[Optional[Section], str, str]] = []
@@ -506,11 +619,13 @@ async def run_tier1_extraction(
     lexicon: Optional[Tier1Lexicon] = None,
     table_texts: Optional[Sequence[str]] = None,
 ) -> dict[str, Any]:
-    lexicon = lexicon or load_mt_lexicon()
-
     paper = await get_paper(paper_id)
     if paper is None:
         raise ValueError(f"Paper {paper_id} does not exist")
+
+    if lexicon is None:
+        domain_key = infer_domain_key(paper)
+        lexicon = load_lexicon(domain_key)
 
     sections = await list_sections(paper_id=paper_id, limit=500, offset=0)
 
@@ -1263,7 +1378,7 @@ def _extract_results_from_text(
     results: list[DetectedResult] = []
     context_start = 0
     context_end = len(text)
-    for match in RESULT_PATTERN.finditer(text):
+    for match in lexicon.result_pattern.finditer(text):
         metric_phrase = match.group("metric")
         metric_entry = lexicon.lookup_metric(metric_phrase) or lexicon.find_metric_in_text(metric_phrase)
         if metric_entry:

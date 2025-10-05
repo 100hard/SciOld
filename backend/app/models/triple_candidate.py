@@ -23,3 +23,6 @@ class TripleCandidateRecord:
     tier: str
     graph_metadata: Dict[str, Any] = field(default_factory=dict)
     provenance: Dict[str, Any] = field(default_factory=dict)
+    verification: Dict[str, Any] = field(default_factory=dict)
+    confidence_components: Dict[str, Any] = field(default_factory=dict)
+    verifier_notes: Optional[str] = None

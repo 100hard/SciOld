@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import Sequence
+from typing import Any, Sequence
 from uuid import UUID
 
 try:
@@ -78,6 +78,21 @@ async def replace_triple_candidates(
                 if section_uuid and section_uuid not in valid_section_ids:
                     section_uuid = None
 
+                provenance_payload = dict(candidate.provenance or {})
+                verifier_details: dict[str, Any] = {}
+                if candidate.verification:
+                    verifier_details["verification"] = candidate.verification
+                if candidate.confidence_components:
+                    verifier_details["confidence_components"] = candidate.confidence_components
+                if candidate.verifier_notes:
+                    verifier_details["notes"] = candidate.verifier_notes
+                if verifier_details:
+                    existing = provenance_payload.get("verifier")
+                    if isinstance(existing, dict):
+                        existing.update({k: v for k, v in verifier_details.items() if v})
+                    else:
+                        provenance_payload["verifier"] = verifier_details
+
                 records.append(
                     (
                         candidate.paper_id,
@@ -95,7 +110,7 @@ async def replace_triple_candidates(
                         candidate.schema_match_score,
                         candidate.tier,
                         candidate.graph_metadata,
-                        candidate.provenance,
+                        provenance_payload,
 
                     )
                 )

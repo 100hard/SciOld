@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import copy
 import logging
 from typing import Any, Optional, Sequence
 from uuid import UUID, uuid4
 
 from app.core.config import settings
+from app.schemas.tier3 import Tier3RelationCandidate
 from app.services import extraction_tier2 as tier2
 from app.services.extraction_tier2 import (
     Tier2ValidationError,
@@ -167,6 +169,8 @@ async def maybe_apply_relation_llm_fallback(
                 "candidate_id",
                 f"{FALLBACK_SOURCE}_{paper_id.hex}_{attempt}_{index:03d}_{uuid4().hex[:8]}",
             )
+            # Ensure Tier-3 specific payloads adhere to our schema contract.
+            Tier3RelationCandidate.model_validate(triple_dict)
             triples.append(triple_dict)
 
         meta.update(
@@ -194,7 +198,67 @@ async def maybe_apply_relation_llm_fallback(
     return [], meta
 
 
+async def run_tier3_relations(
+    paper_id: UUID,
+    *,
+    base_summary: Optional[dict[str, Any]],
+) -> dict[str, Any]:
+    """Orchestrate Tier-3 relation processing for a paper."""
+
+    if base_summary is None:
+        raise ValueError("Tier-3 relations requires Tier-1 and Tier-2 summaries")
+
+    summary = copy.deepcopy(base_summary)
+
+    metadata_raw = summary.get("metadata")
+    metadata: dict[str, Any]
+    if isinstance(metadata_raw, dict):
+        metadata = dict(metadata_raw)
+    else:
+        metadata = {}
+    summary["metadata"] = metadata
+
+    # Ensure the triple candidate list is materialized so we can mutate safely.
+    existing_candidates = list(summary.get("triple_candidates") or [])
+    summary["triple_candidates"] = existing_candidates
+
+    # Track that Tier-3 processing has been attempted for this summary.
+    tiers = set(summary.get("tiers") or [])
+    tiers.update({1, 2, 3})
+    summary["tiers"] = sorted(tiers)
+
+    fallback_candidates: list[dict[str, Any]] = []
+    fallback_meta: dict[str, Any]
+    try:
+        fallback_candidates, fallback_meta = await maybe_apply_relation_llm_fallback(
+            paper_id,
+            summary,
+        )
+    except Exception as exc:  # pragma: no cover - defensive guard
+        fallback_meta = {
+            "triggered": True,
+            "status": "error",
+            "errors": [str(exc)],
+        }
+
+    if fallback_candidates:
+        existing_candidates.extend(fallback_candidates)
+
+    tier3_meta = {
+        "tier": "tier3_relations",
+        "status": fallback_meta.get("status", "unknown"),
+        "added_candidates": len(fallback_candidates),
+        "total_candidates": len(existing_candidates),
+        "fallback": fallback_meta,
+    }
+
+    metadata["tier3_relations"] = tier3_meta
+
+    return summary
+
+
 __all__ = [
     "FALLBACK_SOURCE",
     "maybe_apply_relation_llm_fallback",
+    "run_tier3_relations",
 ]

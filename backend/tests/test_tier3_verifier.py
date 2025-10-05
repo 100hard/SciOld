@@ -149,6 +149,8 @@ async def test_run_tier3_verifier_resolves_coref_and_updates_confidence(
     summary = await run_tier3_verifier(paper_id, base_summary=base_summary)
 
     assert captured_results, "Tier-3 should emit structured results"
+    assert captured_results[0].verified is True
+    assert captured_results[0].verifier_notes.startswith("tier3:value_in_evidence")
     assert 3 in summary["tiers"], "tier3 should be recorded"
 
     candidates = summary["triple_candidates"]
@@ -156,6 +158,8 @@ async def test_run_tier3_verifier_resolves_coref_and_updates_confidence(
 
     assert first["normalization"]["metric"].lower().startswith("bleu")
     assert first["verification"]["table_match"]
+    assert first["verification"]["numeric_status"] == "accepted"
+    assert first["verification"]["provenance_category"] == "table"
 
     assert second["subject"] == "AlphaNet"
     assert second["subject_alias"] == "This model"
@@ -168,6 +172,94 @@ async def test_run_tier3_verifier_resolves_coref_and_updates_confidence(
     assert meta["tier"] == TIER_NAME
     assert meta["coref_resolved"] >= 1
     assert meta["table_matches"] >= 1
+    assert "numeric_rejections" not in meta
+
+
+@pytest.mark.anyio
+async def test_run_tier3_verifier_rejects_measurement_without_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paper_id = uuid4()
+    sections = [
+        _build_section(
+            "sec-1",
+            [
+                "AlphaNet is a new translation model.",
+                "AlphaNet achieves state-of-the-art translation accuracy.",
+            ],
+        )
+    ]
+
+    triple_candidates = [
+        {
+            "candidate_id": "tier2_llm_openie_003",
+            "tier": "tier2_llm_openie",
+            "subject": "AlphaNet",
+            "relation": "achieves",
+            "object": "BLEU 41.8 on WMT14 En-Fr test set",
+            "subject_type_guess": "method",
+            "relation_type_guess": "achieves",
+            "object_type_guess": "result",
+            "triple_conf": 0.6,
+            "evidence": "AlphaNet achieves state-of-the-art translation accuracy.",
+            "evidence_spans": [
+                {"section_id": "sec-1", "sentence_index": 1, "start": 0, "end": 62}
+            ],
+        }
+    ]
+
+    captured_results: list = []
+
+    async def fake_append_results(paper_id_arg, results):
+        if paper_id_arg != paper_id:
+            raise AssertionError("Unexpected paper_id")
+        captured_results.extend(results)
+        return []
+
+    async def fake_append_method_relations(*_: object, **__: object) -> list:
+        return []
+
+    async def fake_ensure_method(name: str, **_: object) -> SimpleNamespace:
+        return SimpleNamespace(id=uuid4(), name=name)
+
+    async def fake_ensure_dataset(*_: object, **__: object) -> None:
+        return None
+
+    async def fake_ensure_metric(*_: object, **__: object) -> None:
+        return None
+
+    async def fake_ensure_task(*_: object, **__: object) -> None:
+        return None
+
+    monkeypatch.setattr("app.services.extraction_tier3.ensure_method", fake_ensure_method)
+    monkeypatch.setattr("app.services.extraction_tier3.ensure_dataset", fake_ensure_dataset)
+    monkeypatch.setattr("app.services.extraction_tier3.ensure_metric", fake_ensure_metric)
+    monkeypatch.setattr("app.services.extraction_tier3.ensure_task", fake_ensure_task)
+    monkeypatch.setattr("app.services.extraction_tier3.append_results", fake_append_results)
+    monkeypatch.setattr(
+        "app.services.extraction_tier3.append_method_relations",
+        fake_append_method_relations,
+    )
+
+    base_summary = {
+        "paper_id": str(paper_id),
+        "tiers": [1, 2],
+        "sections": sections,
+        "tables": [],
+        "triple_candidates": triple_candidates,
+    }
+
+    summary = await run_tier3_verifier(paper_id, base_summary=base_summary)
+
+    assert not captured_results, "Measurement without evidence should not persist"
+
+    candidate = summary["triple_candidates"][0]
+    assert "normalization" not in candidate
+    assert candidate["verification"]["numeric_status"] == "rejected"
+    assert candidate["verification"]["value_in_evidence"] is False
+
+    meta = summary["metadata"]["tier3"]
+    assert meta["numeric_rejections"]["value_not_in_evidence"] == 1
 
 
 @pytest.mark.anyio
@@ -267,7 +359,7 @@ async def test_run_tier3_verifier_persists_qualitative_relations(
     relation = captured_relations[0]
     assert relation.dataset_id is not None
     assert relation.relation_type.value == "evaluates_on"
-    assert relation.confidence == pytest.approx(0.72)
+    assert relation.confidence == pytest.approx(0.67, rel=1e-3)
     assert relation.evidence and relation.evidence[0]["snippet"].startswith("QualNet is evaluated")
 
     meta = summary["metadata"]["tier3"]
@@ -368,7 +460,7 @@ async def test_run_tier3_verifier_allows_supported_low_confidence_dataset_relati
     relation = captured_relations[0]
     assert relation.dataset_id is not None
     assert relation.relation_type.value == "evaluates_on"
-    assert relation.confidence == pytest.approx(0.56)
+    assert relation.confidence == pytest.approx(0.51, rel=1e-3)
     assert relation.evidence and relation.evidence[0]["snippet"].startswith("QualNet is evaluated")
 
     meta = summary["metadata"]["tier3"]

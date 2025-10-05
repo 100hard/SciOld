@@ -31,7 +31,17 @@ type NodeType =
   | "organism"
   | "finding"
   | "process";
-type RelationType = "proposes" | "evaluates_on" | "reports" | "compares";
+type RelationType =
+  | "proposes"
+  | "evaluates_on"
+  | "reports"
+  | "compares"
+  | "uses"
+  | "causes"
+  | "part_of"
+  | "is_a"
+  | "outperforms"
+  | "assumes";
 
 type GraphNodeLink = {
   id: string;
@@ -173,7 +183,18 @@ const ALL_TYPES: NodeType[] = [
   "finding",
   "process",
 ];
-const ALL_RELATIONS: RelationType[] = ["proposes", "evaluates_on", "reports", "compares"];
+const ALL_RELATIONS: RelationType[] = [
+  "proposes",
+  "evaluates_on",
+  "reports",
+  "compares",
+  "uses",
+  "causes",
+  "part_of",
+  "is_a",
+  "outperforms",
+  "assumes",
+];
 
 const NODE_COLORS: Record<NodeType, string> = {
   method: "#0ea5e9",
@@ -192,6 +213,12 @@ const EDGE_COLORS: Record<RelationType, string> = {
   evaluates_on: "#22c55e",
   reports: "#8b5cf6",
   compares: "#64748b",
+  uses: "#0ea5e9",
+  causes: "#ef4444",
+  part_of: "#d946ef",
+  is_a: "#6366f1",
+  outperforms: "#10b981",
+  assumes: "#facc15",
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -432,6 +459,18 @@ const formatRelationLabel = (relation: RelationType) => {
       return "Reports";
     case "compares":
       return "Compares";
+    case "uses":
+      return "Uses";
+    case "causes":
+      return "Causes";
+    case "part_of":
+      return "Part of";
+    case "is_a":
+      return "Is a";
+    case "outperforms":
+      return "Outperforms";
+    case "assumes":
+      return "Assumes";
     default:
       return relation;
   }

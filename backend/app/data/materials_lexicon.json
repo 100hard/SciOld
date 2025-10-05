@@ -1,0 +1,53 @@
+{
+  "domain": "materials",
+  "methods": [
+    {
+      "name": "Density Functional Theory",
+      "aliases": ["DFT", "Density-functional theory"],
+      "description": "Quantum mechanical modelling method for materials"
+    },
+    {
+      "name": "Additive Manufacturing",
+      "aliases": ["3D printing"],
+      "description": "Layer-by-layer fabrication of materials and parts"
+    }
+  ],
+  "datasets": [
+    {
+      "name": "Materials Project",
+      "aliases": ["MP database"],
+      "description": "Computed information on inorganic crystal structures"
+    },
+    {
+      "name": "AFLOW",
+      "aliases": ["AFLOWlib"],
+      "description": "Materials database of calculated properties"
+    }
+  ],
+  "metrics": [
+    {
+      "name": "Band Gap",
+      "aliases": ["Bandgap", "Energy gap"],
+      "unit": "eV",
+      "description": "Energy difference between valence and conduction bands"
+    },
+    {
+      "name": "Yield Strength",
+      "aliases": ["Yield stress"],
+      "unit": "MPa",
+      "description": "Stress at which a material begins to deform plastically"
+    }
+  ],
+  "tasks": [
+    {
+      "name": "Catalyst Screening",
+      "aliases": ["Catalysis design"],
+      "description": "Identifying catalysts with desired activity and stability"
+    },
+    {
+      "name": "Battery Cathode Optimization",
+      "aliases": ["Cathode design"],
+      "description": "Improving cathode materials for energy storage"
+    }
+  ]
+}

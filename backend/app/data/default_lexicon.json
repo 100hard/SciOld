@@ -1,0 +1,77 @@
+{
+  "domain": "general_science",
+  "methods": [
+    {
+      "name": "Random Forest",
+      "aliases": ["Random Forests", "RF classifier"],
+      "description": "Ensemble of decision trees trained with bootstrap aggregation"
+    },
+    {
+      "name": "Support Vector Machine",
+      "aliases": ["SVM", "Support Vector Machines"],
+      "description": "Margin-based classifier for linear and non-linear decision boundaries"
+    },
+    {
+      "name": "Graph Neural Network",
+      "aliases": ["GNN", "Graph Neural Networks"],
+      "description": "Neural architecture operating on graph-structured inputs"
+    }
+  ],
+  "datasets": [
+    {
+      "name": "ImageNet",
+      "aliases": ["ILSVRC", "ImageNet-1k"],
+      "description": "Large-scale dataset for image classification"
+    },
+    {
+      "name": "CIFAR-10",
+      "aliases": ["CIFAR10"],
+      "description": "Image classification dataset of 10 everyday object categories"
+    },
+    {
+      "name": "GLUE Benchmark",
+      "aliases": ["GLUE", "General Language Understanding Evaluation"],
+      "description": "Suite of NLP tasks for benchmarking language understanding"
+    }
+  ],
+  "metrics": [
+    {
+      "name": "Accuracy",
+      "aliases": ["Acc."],
+      "description": "Proportion of correct predictions"
+    },
+    {
+      "name": "F1 Score",
+      "aliases": ["F1", "F1-score"],
+      "description": "Harmonic mean of precision and recall"
+    },
+    {
+      "name": "Area Under ROC",
+      "aliases": ["ROC AUC", "AUC"],
+      "description": "Area under the receiver operating characteristic curve"
+    },
+    {
+      "name": "Mean Absolute Error",
+      "aliases": ["MAE"],
+      "unit": null,
+      "description": "Average absolute difference between predicted and observed values"
+    }
+  ],
+  "tasks": [
+    {
+      "name": "Image Classification",
+      "aliases": ["Image Recognition"],
+      "description": "Assigning labels to images"
+    },
+    {
+      "name": "Question Answering",
+      "aliases": ["QA"],
+      "description": "Answering natural-language questions given context"
+    },
+    {
+      "name": "Named Entity Recognition",
+      "aliases": ["NER"],
+      "description": "Extracting entity spans from unstructured text"
+    }
+  ]
+}

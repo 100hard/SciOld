@@ -1,4 +1,12 @@
 
+from .compare import (
+    ComparisonCell,
+    ComparisonEntitySummary,
+    ComparisonPaper,
+    ComparisonRow,
+    ComparisonSummary,
+    PaperComparisonResponse,
+)
 from .concept import Concept, ConceptBase, ConceptCreate
 from .evidence import Evidence, EvidenceBase, EvidenceCreate
 from .ontology import (
@@ -91,4 +99,10 @@ __all__ = [
     "ConceptResolutionBase",
     "ConceptResolutionCreate",
     "ConceptResolutionType",
+    "ComparisonCell",
+    "ComparisonEntitySummary",
+    "ComparisonPaper",
+    "ComparisonRow",
+    "ComparisonSummary",
+    "PaperComparisonResponse",
 ]

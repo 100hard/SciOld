@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Database,
   FileText,
+  GitCompare,
   LayoutDashboard,
   Settings,
   Share2,
@@ -14,6 +15,7 @@ import {
 const navigation = [
   { name: "Overview", href: "/", icon: LayoutDashboard },
   { name: "Graph", href: "/graph", icon: Share2 },
+  { name: "Compare", href: "/compare", icon: GitCompare },
   { name: "Datasets", href: "/datasets", icon: Database },
   { name: "Papers", href: "/papers", icon: FileText },
   { name: "Ingestion", href: "/ingestion", icon: UploadCloud },
